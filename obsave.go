@@ -27,16 +27,47 @@ func debugLog(message string) {
 	}
 }
 
-// Function to expand the home directory if "~" is used in the path
-func expandPath(path string) (string, error) {
-	if strings.HasPrefix(path, "~") {
-		usr, err := user.Current()
+// Function to parse the custom frontmatter string
+func parseCustomClasses(classString string) (map[string]string, error) {
+	frontmatter := make(map[string]string)
+
+	if classString == "" {
+		return frontmatter, nil
+	}
+
+	pairs := strings.Split(classString, ";")
+	for _, pair := range pairs {
+		kv := strings.Split(pair, "=")
+		if len(kv) != 2 {
+			return nil, fmt.Errorf("invalid pair: %s", pair)
+		}
+		key := strings.TrimSpace(kv[0])
+		value := strings.TrimSpace(kv[1])
+		frontmatter[key] = value
+	}
+
+	return frontmatter, nil
+}
+
+// Function to expand home directories and clean up paths
+func expandAndCleanPath(path string) (string, error) {
+	// Handle home directory expansion (for Unix-like systems)
+	if path[:2] == "~/" {
+		usr, err := os.UserHomeDir()
 		if err != nil {
 			return "", err
 		}
-		return filepath.Join(usr.HomeDir, strings.TrimPrefix(path, "~")), nil
+		path = filepath.Join(usr, path[2:])
 	}
-	return path, nil
+
+	// Clean up the path to remove unnecessary parts like "./", "../", etc.
+	cleanPath := filepath.Clean(path)
+	absPath, err := filepath.Abs(cleanPath)
+	if err != nil {
+		return "", err
+	}
+
+	return absPath, nil
 }
 
 func getConfigPath() string {
@@ -63,8 +94,8 @@ func loadConfig() string {
 	return vaultPath
 }
 
-// Function to create frontmatter
-func createFrontmatter(name, tags string) string {
+// Function to create frontmatter, including custom frontmatter
+func createFrontmatter(name, tags string, customClasses map[string]string) string {
 	frontmatter := fmt.Sprintf("---\ntitle: %s\n", name)
 	if tags != "" {
 		tagList := strings.Split(tags, ",")
@@ -73,13 +104,19 @@ func createFrontmatter(name, tags string) string {
 		}
 		frontmatter += fmt.Sprintf("tags: [%s]\n", strings.Join(tagList, ", "))
 	}
-	frontmatter += fmt.Sprintf("date: %s\n---\n", time.Now().Format("2006-01-02 15:04"))
-	debugLog("Frontmatter created: " + frontmatter)
+	frontmatter += fmt.Sprintf("date: %s\n", time.Now().Format("2006-01-02"))
+
+	// Append custom frontmatter key-value pairs
+	for key, value := range customClasses {
+		frontmatter += fmt.Sprintf("%s: %s\n", key, value)
+	}
+
+	frontmatter += "---\n"
 	return frontmatter
 }
 
 // Function to save content to Obsidian vault
-func saveToObsidian(name, content, tags, vaultPath, overwriteMode string) error {
+func saveToObsidian(name, content string, customClasses map[string]string, tags, vaultPath, overwriteMode string, dryRun bool) error {
 	fileName := name + ".md"
 	filePath := filepath.Join(vaultPath, fileName)
 
@@ -108,7 +145,14 @@ func saveToObsidian(name, content, tags, vaultPath, overwriteMode string) error 
 	}
 
 	// Create frontmatter and save to the file
-	frontmatter := createFrontmatter(name, tags)
+	frontmatter := createFrontmatter(name, tags, customClasses)
+
+	if dryRun {
+		fmt.Println("Dry-run: The following content would be saved:")
+		fmt.Println(frontmatter + "\n" + content)
+		return nil
+	}
+
 	file, err := os.Create(filePath)
 	if err != nil {
 		return err
@@ -128,11 +172,13 @@ func saveToObsidian(name, content, tags, vaultPath, overwriteMode string) error 
 
 func main() {
 	// Command-line flags
-	name := flag.String("n", "", "Name of the note (short: -n, long: --name)")
-	tags := flag.String("t", "", "Comma-separated list of tags (short: -t, long: --tag)")
-	vaultPath := flag.String("v", "", "Path to Obsidian vault folder (short: -v, long: --vault)")
+	name := flag.String("name", "", "Name of the note")
+	tags := flag.String("tags", "", "Comma-separated list of tags")
+	properties := flag.String("properties", "", "Custom frontmatter properties key:value pairs (e.g., author=John;status=Draft)")
+	vaultPath := flag.String("vault", "", "Path to Obsidian vault folder")
 	overwriteMode := flag.String("overwrite-mode", "fail", "Overwrite mode: 'overwrite' or 'serialize'")
-	debugFlag := flag.Bool("debug", false, "Enable debug mode (long: --debug)")
+	debugFlag := flag.Bool("debug", false, "Enable debug mode")
+	dryRun := flag.Bool("dry-run", false, "Simulate the run without writing files")
 	flag.Parse()
 
 	// Enable debug mode based on flag
@@ -152,7 +198,7 @@ func main() {
 	}
 
 	// Expand the "~" if used in the vault path
-	expandedVaultPath, err := expandPath(*vaultPath)
+	expandedVaultPath, err := expandAndCleanPath(*vaultPath)
 	if err != nil {
 		fmt.Println("Error expanding vault path:", err)
 		os.Exit(1)
@@ -165,6 +211,14 @@ func main() {
 		flag.Usage()
 		os.Exit(1)
 	}
+
+	// Parse custom frontmatter class
+	customClasses, err := parseCustomClasses(*properties)
+	if err != nil {
+		log.Fatalf("Failed to parse custom frontmatter: %v\n", err)
+	}
+	// Log the parsed custom classes in debug mode
+	debugLog(fmt.Sprintf("Parsed custom classes: %+v", customClasses))
 
 	// Read piped input (from stdin)
 	scanner := bufio.NewScanner(os.Stdin)
@@ -179,8 +233,8 @@ func main() {
 	content := contentBuilder.String()
 	debugLog("Content read from stdin: " + content)
 
-	// Save the content to the Obsidian vault
-	err = saveToObsidian(*name, content, *tags, expandedVaultPath, *overwriteMode)
+	// Save the content to the Obsidian vault, or simulate if dry-run is enabled
+	err = saveToObsidian(*name, content, customClasses, *tags, expandedVaultPath, *overwriteMode, *dryRun)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error saving note: %v\n", err)
 		os.Exit(1)
