@@ -1,6 +1,3 @@
-Here's an updated version of the README with a **"Cloning and Building"** section to help users who want to clone and build the `obsave` utility from source.
-
----
 
 # obsave
 
@@ -113,6 +110,3 @@ Make sure you have Go installed on your system. You can install Go from [here](h
    obsave --name "NewNote" --vault "~/ObsidianVault"
    ```
 
----
-
-This new section provides instructions for users who want to clone and build the `obsave` project from source, making it accessible to contributors or developers interested in modifying the tool. Let me know if you need further refinements!
