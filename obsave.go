@@ -166,7 +166,6 @@ func saveToObsidian(name, content string, customClasses map[string]string, tags,
 	}
 
 	debugLog("Note saved successfully at: " + filePath)
-	fmt.Printf("Note saved to %s\n", filePath)
 	return nil
 }
 
