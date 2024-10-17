@@ -1,2 +1,37 @@
-VaultPath="~/Obsidian/Vault"
+# obsave configuration file
 
+# Path to your Obsidian vault
+# Use ~ for home directory, paths will be expanded
+vault_path: "~/Documents/ObsidianVault"
+
+# Overwrite mode: how to handle existing files
+# Options: "overwrite", "serialize", "fail"
+overwrite_mode: "fail"
+
+# Default tags to be applied to all notes
+# These can be overridden or combined with CLI options
+tags:
+  - default
+  - obsave
+
+# Default properties to be applied to all notes
+# These can be overridden or combined with CLI options
+properties:
+  tool: obsave
+  version: "1.0"
+
+# Enable debug mode for detailed logging
+# Options: true, false
+debug: false
+
+# Enable dry run mode to simulate operations without writing files
+# Options: true, false
+dry_run: false
+
+# Tags handling mode: how to combine config and CLI tags
+# Options: "replace", "add", "merge"
+tags_handling: "merge"
+
+# Properties handling mode: how to combine config and CLI properties
+# Options: "replace", "add", "merge"
+properties_handling: "merge"
