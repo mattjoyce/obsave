@@ -16,6 +16,17 @@
 - **Debug Mode**: Enable detailed logging with the `--debug` flag.
 - **Verbose**: Print the full path of the saved file with the `--verbose` flag.
 
+> [!IMPORTANT]
+> ## Changelog
+> - **19-Oct-2024**: Added `--verbose` option to output final filename and path
+> - **17-Oct-2024**: 
+>   - Switched to YAML for configuration
+>   - Implemented separate configuration files
+> - **16-Oct-2024**:
+>   - Implemented `--debug` option for verbose output
+>   - Added `--dry-run` option and support for custom properties
+> - **15-Oct-2024**: Initial commit of Obsave project
+
 ## Installation
 
 To install `obsave`, you need to have Go installed on your machine. You can install the utility with:
