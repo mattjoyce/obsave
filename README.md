@@ -14,6 +14,7 @@
   - `fail`: Aborts the operation if the file already exists.
 - **Dry Run Mode**: Simulate the operation without writing the file by using the `--dry-run` flag.
 - **Debug Mode**: Enable detailed logging with the `--debug` flag.
+- **Verbose**: Print the full path of the saved file with the `--verbose` flag.
 
 ## Installation
 
@@ -164,8 +165,9 @@ echo "Custom config content" | obsave custom_config --name "CustomNote"
 
 This will use the configuration from `~/.config/obsave/custom_config`.
 
-[!note]
-All option can be specified in the config yaml, except `name` which must be specified as a cli option.
+[!NOTE]
+All option can be specified in the yaml config file, and overwriten by cli options.
+Including Name
 
 ## Cloning and Building from Source
 
