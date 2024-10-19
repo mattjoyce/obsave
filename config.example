@@ -28,6 +28,13 @@ debug: false
 # Options: true, false
 dry_run: false
 
+# Enable verbose to outout the filename
+# Useful if you want to do something else with the file
+# eg. display 
+# echo "foo" | obsave --name foo --verbose | xargs cat
+# Options : true, false
+verbose: false
+
 # Tags handling mode: how to combine config and CLI tags
 # Options: "replace", "add", "merge"
 tags_handling: "merge"
