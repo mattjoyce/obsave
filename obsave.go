@@ -143,7 +143,7 @@ func createFrontmatter(config *Config) string {
 }
 
 
-func saveToObsidian(content string, config *Config) error {
+func saveToObsidian(content string, config *Config) (string, error) {
 	fileName := config.Name + ".md"
 	filePath := filepath.Join(config.VaultPath, fileName)
 
@@ -163,7 +163,7 @@ func saveToObsidian(content string, config *Config) error {
 					}
 					debugLog("Serialized file path: " + filePath)
 			} else if config.OverwriteMode != "overwrite" {
-					return fmt.Errorf("file '%s' already exists. Use --overwrite-mode=overwrite or --overwrite-mode=serialize", fileName)
+					return "",fmt.Errorf("file '%s' already exists. Use --overwrite-mode=overwrite or --overwrite-mode=serialize", fileName)
 			} else {
 					debugLog("Overwriting existing file: " + filePath)
 			}
@@ -177,24 +177,24 @@ func saveToObsidian(content string, config *Config) error {
 	if config.DryRun {
 			fmt.Println("Dry-run: The following content would be saved:")
 			fmt.Println(frontmatter + "\n" + content)
-			return nil
+			return filePath, nil
 	}
 
 	// Write the content to the file
 	file, err := os.Create(filePath)
 	if err != nil {
-			return err
+			return "",err
 	}
 	defer file.Close()
 
 	// Prepend the frontmatter to the content
 	_, err = file.WriteString(frontmatter + "\n" + content)
 	if err != nil {
-			return err
+			return "",err
 	}
 
 	debugLog("Note saved successfully at: " + filePath)
-	return nil
+	return filePath, nil
 }
 
 
@@ -300,6 +300,7 @@ func main() {
 	dryRun := flag.Bool("dry-run", false, "Simulate the run without writing files")
 	tagsHandling := flag.String("tags-handling", "merge", "Tags handling mode: 'replace', 'add', or 'merge'")
 	propertiesHandling := flag.String("properties-handling", "merge", "Properties handling mode: 'replace', 'add', or 'merge'")
+	verbose := flag.Bool("verbose", false, "Enable verbose mode")
 	flag.Parse()
 
 
@@ -403,9 +404,14 @@ func main() {
 	debugLog("Content read from stdin: " + content)
 
 	// Save the content to the Obsidian vault, or simulate if dry-run is enabled
-	err = saveToObsidian(content, config)
+	fullFilename, err := saveToObsidian(content, config)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error saving note: %v\n", err)
-		os.Exit(1)
+			fmt.Fprintf(os.Stderr, "Error saving note: %v\n", err)
+			os.Exit(1)
 	}
+
+	if *verbose {
+		fmt.Println(fullFilename)
+	}
+
 }
