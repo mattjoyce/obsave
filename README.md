@@ -138,6 +138,9 @@ Use the `--properties-handling` option to specify how properties should be manag
 
 The utility now uses YAML configuration files stored in `~/.config/obsave/`. The default configuration file is named `config`, but you can specify different configuration files as needed.
 
+> [!IMPORTANT]
+> Windows users should use `%USERPROFILE%` instead of `~/` for the config directory.  Which might be `C:\Users\<username>\`
+
 ### Example Configuration File
 
 ```yaml
