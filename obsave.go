@@ -25,6 +25,7 @@ type Config struct {
 	TagsHandling  string            `yaml:"tags_handling"` 
 	PropertiesHandling string `yaml:"properties_handling"`
 	Name          string            `yaml:"name"`
+	Verbose       bool              `yaml:"verbose"`
 }
 
 // configs should be in ~/.config/obsave/
@@ -291,6 +292,8 @@ func mergeTags(config *Config, cliTags string) {
 
 func main() {
 	// Command-line flags
+	configFile := flag.String("config", "config", "Name of the config file to use")
+	configFileShort := flag.String("c", "", "Name of the config file to use (shorthand)")
 	name := flag.String("name", "", "Name of the note")
 	tags := flag.String("tags", "", "Comma-separated list of tags")
 	properties := flag.String("properties", "", "Custom frontmatter properties key:value pairs (e.g., author=John;status=Draft)")
@@ -301,26 +304,21 @@ func main() {
 	tagsHandling := flag.String("tags-handling", "merge", "Tags handling mode: 'replace', 'add', or 'merge'")
 	propertiesHandling := flag.String("properties-handling", "merge", "Properties handling mode: 'replace', 'add', or 'merge'")
 	verbose := flag.Bool("verbose", false, "Enable verbose mode")
+	
+	// Parse command-line flags
 	flag.Parse()
 
-
-	// Check for a non-hyphen-prefixed positional argument for the config file
-	configName := configFile // Default config file
-	if len(os.Args) > 1 && !strings.HasPrefix(os.Args[1], "-") {
-		configName = os.Args[1] // Use the positional argument as the config name
-		// Re-parse the remaining arguments after the config name
-		flag.CommandLine.Parse(os.Args[2:])
-	} else {
-		// Parse command-line flags normally
-		flag.Parse()
+	// Determine which config file to use (-c takes precedence over --config)
+	configName := *configFile
+	if *configFileShort != "" {
+		configName = *configFileShort
 	}
 
 	// Load config values and merge them with command-line options
 	config, err := loadConfig(configName)
 	if err != nil {
-			log.Fatalf("Error loading config: %v", err)
+		log.Fatalf("Error loading config: %v", err)
 	}
-
 	// Overwrite config values with command-line flags (if provided)
 	if *vaultPath != "" {
 		config.VaultPath = *vaultPath
@@ -339,6 +337,9 @@ func main() {
 	}
 	if *propertiesHandling != "" {
 		config.PropertiesHandling = *propertiesHandling
+	}
+	if *verbose {
+		config.Verbose = true
 	}
 
 	switch config.PropertiesHandling {
@@ -410,7 +411,7 @@ func main() {
 			os.Exit(1)
 	}
 
-	if *verbose {
+	if config.Verbose {
 		fmt.Println(fullFilename)
 	}
 
