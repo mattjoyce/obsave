@@ -291,37 +291,63 @@ func mergeTags(config *Config, cliTags string) {
 
 
 func main() {
-	// Command-line flags
-	configFile := flag.String("config", "config", "Name of the config file to use")
-	configFileShort := flag.String("c", "", "Name of the config file to use (shorthand)")
-	name := flag.String("name", "", "Name of the note")
-	tags := flag.String("tags", "", "Comma-separated list of tags")
-	properties := flag.String("properties", "", "Custom frontmatter properties key:value pairs (e.g., author=John;status=Draft)")
-	vaultPath := flag.String("vault", "", "Path to Obsidian vault folder")
+	// Command-line flags with both long and short forms
+	var name string
+	flag.StringVar(&name, "name", "", "Name of the note")
+	flag.StringVar(&name, "n", "", "Name of the note (shorthand)")
+	
+	var tags string
+	flag.StringVar(&tags, "tags", "", "Comma-separated list of tags")
+	flag.StringVar(&tags, "t", "", "Comma-separated list of tags (shorthand)")
+	
+	var properties string
+	flag.StringVar(&properties, "properties", "", "Custom frontmatter properties key:value pairs (e.g., author=John;status=Draft)")
+	flag.StringVar(&properties, "p", "", "Custom frontmatter properties key:value pairs (shorthand)")
+	
+	var vaultPath string
+	flag.StringVar(&vaultPath, "vault", "", "Path to Obsidian vault folder")
+	flag.StringVar(&vaultPath, "ob", "", "Path to Obsidian vault folder (shorthand)")
+	
+	var verbose bool
+	flag.BoolVar(&verbose, "verbose", false, "Enable verbose mode")
+	flag.BoolVar(&verbose, "v", false, "Enable verbose mode (shorthand)")
+	
+	var configFileFlag string
+	flag.StringVar(&configFileFlag, "config", "", "Name of the config file to use")
+	flag.StringVar(&configFileFlag, "c", "", "Name of the config file to use (shorthand)")
+	
+	// Existing flags without short forms
 	overwriteMode := flag.String("overwrite-mode", "fail", "Overwrite mode: 'overwrite' or 'serialize'")
 	debugFlag := flag.Bool("debug", false, "Enable debug mode")
 	dryRun := flag.Bool("dry-run", false, "Simulate the run without writing files")
 	tagsHandling := flag.String("tags-handling", "merge", "Tags handling mode: 'replace', 'add', or 'merge'")
 	propertiesHandling := flag.String("properties-handling", "merge", "Properties handling mode: 'replace', 'add', or 'merge'")
-	verbose := flag.Bool("verbose", false, "Enable verbose mode")
 	
 	// Parse command-line flags
 	flag.Parse()
 
-	// Determine which config file to use (-c takes precedence over --config)
-	configName := *configFile
-	if *configFileShort != "" {
-		configName = *configFileShort
+	// Initialize empty config
+	config := &Config{}
+
+	// 1. Try to load default config if it exists
+	defaultConfig, err := loadConfig(filepath.Join(configDir, configFile))
+	if err == nil {
+		// Only use default config if it was successfully loaded
+		config = defaultConfig
 	}
 
-	// Load config values and merge them with command-line options
-	config, err := loadConfig(configName)
-	if err != nil {
-		log.Fatalf("Error loading config: %v", err)
+	// 2. If a specific config file was provided, load and use it instead
+	if configFileFlag != "" {
+		specifiedConfig, err := loadConfig(configFileFlag)
+		if err != nil {
+			log.Fatalf("Error loading specified config file: %v", err)
+		}
+		config = specifiedConfig
 	}
-	// Overwrite config values with command-line flags (if provided)
-	if *vaultPath != "" {
-		config.VaultPath = *vaultPath
+
+	// 3. Override with command-line options if provided
+	if vaultPath != "" {
+		config.VaultPath = vaultPath
 	}
 	if *overwriteMode != "" {
 		config.OverwriteMode = *overwriteMode
@@ -338,38 +364,51 @@ func main() {
 	if *propertiesHandling != "" {
 		config.PropertiesHandling = *propertiesHandling
 	}
-	if *verbose {
+	if verbose {
 		config.Verbose = true
 	}
-
-	switch config.PropertiesHandling {
-	case "wipe": // or "replace"
-			replaceProperties(config, *properties)
-	case "add":
-			addProperties(config, *properties)
-	case "merge": // or "merge replace"
-			mergeProperties(config, *properties)
+	if name != "" {
+		config.Name = name
+	}
+	if tags != "" {
+		switch config.TagsHandling {
+		case "replace":
+			replaceTags(config, tags)
+		case "add":
+			addTags(config, tags)
+		default: // "merge" is default
+			mergeTags(config, tags)
+		}
+	}
+	if properties != "" {
+		switch config.PropertiesHandling {
+		case "replace":
+			replaceProperties(config, properties)
+		case "add":
+			addProperties(config, properties)
+		default: // "merge" is default
+			mergeProperties(config, properties)
+		}
 	}
 
-	switch config.TagsHandling {
-	case "replace":
-		replaceTags(config, *tags)
-	case "add":
-		addTags(config, *tags)
-	case "merge":
-		mergeTags(config, *tags)
+	// 4. Check mandatory options
+	if config.Name == "" {
+		fmt.Println("Error: Note name is required (use --name or -n)")
+		flag.Usage()
+		os.Exit(1)
 	}
 
-  // Enable debug mode based on flag
+	if config.VaultPath == "" {
+		fmt.Println("Error: Vault path is required (use --vault or -ob)")
+		flag.Usage()
+		os.Exit(1)
+	}
+
+	// Enable debug mode if set
 	if config.Debug {
 		debugMode = true
 		log.SetFlags(log.Ldate | log.Ltime | log.Lshortfile)
 		debugLog("Debug mode enabled")
-	}
-
-	if config.VaultPath == "" {
-		fmt.Println("Error: Vault path is required either through config or --vault argument.")
-			os.Exit(1)
 	}
 	
 
@@ -382,15 +421,7 @@ func main() {
 	config.VaultPath = expandedVaultPath
 	debugLog("Vault path expanded: " + expandedVaultPath)
 
-	// Check for required arguments
-	if *name == "" {
-		fmt.Println("Error: Name is required.")
-		flag.Usage()
-		os.Exit(1)
-	}
 
-	config.Name = *name
-	
 	// Read piped input (from stdin)
 	scanner := bufio.NewScanner(os.Stdin)
 	var contentBuilder strings.Builder
