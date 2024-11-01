@@ -290,8 +290,66 @@ func mergeTags(config *Config, cliTags string) {
 }
 
 
+func printExtendedHelp() {
+	fmt.Println(`
+Obsave - Obsidian Note Creation Utility
+
+DESCRIPTION:
+    A utility for creating and managing notes in an Obsidian vault with flexible
+    frontmatter handling, tag management, and property customization.
+
+BASIC USAGE:
+    echo "Your note content" | obsave -n "Note Title" -ob ~/vault/path
+
+CONFIGURATION:
+    Default config location: ~/.config/obsave/config
+    Config precedence:
+    1. Default config (if exists)
+    2. Specified config file (-c/--config)
+    3. Command line options
+
+EXAMPLES:
+    # Create a simple note
+    echo "Meeting minutes" | obsave -n "Team Meeting" -ob ~/Notes
+
+    # Use tags and properties
+    echo "Project specs" | obsave -n "Project Alpha" -ob ~/Notes \
+        -t "project,specs" -p "status=draft;priority=high"
+
+    # Use a specific config file
+    echo "Custom note" | obsave -c my-config -n "Custom Note"
+
+    # Merge new tags with config defaults
+    echo "Tagged content" | obsave -n "Tagged Note" -ob ~/Notes \
+        -t "new-tag" --tags-handling merge
+
+FRONTMATTER:
+    The generated note includes YAML frontmatter with:
+    - title: from name option
+    - date: auto-generated (YYYY-MM-DD)
+    - tags: from config and/or command line
+    - custom properties: from config and/or command line
+
+For more information and examples, visit:
+https://github.com/mattjoyce/obsave`)
+}
+
+func init() {
+	// Customize the usage message
+	flag.Usage = func() {
+		fmt.Fprintf(os.Stderr, "Usage: %s [OPTIONS]\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "\nOptions:\n")
+		flag.PrintDefaults()
+		fmt.Fprintf(os.Stderr, "\nFor detailed help and examples, use -h or --help\n")
+	}
+}
+
 func main() {
 	// Command-line flags with both long and short forms
+
+  // Add explicit help flag (in addition to automatic -h)
+	help := flag.Bool("help", false, "Display detailed help information")
+
 	var name string
 	flag.StringVar(&name, "name", "", "Name of the note")
 	flag.StringVar(&name, "n", "", "Name of the note (shorthand)")
@@ -325,6 +383,12 @@ func main() {
 	
 	// Parse command-line flags
 	flag.Parse()
+
+	// Check for help flag first
+	if *help {
+		printExtendedHelp()
+		os.Exit(0)
+	}
 
 	// Initialize empty config
 	config := &Config{}
@@ -392,14 +456,20 @@ func main() {
 	}
 
 	// 4. Check mandatory options
+	// Check mandatory options
+	mandatoryError := false
 	if config.Name == "" {
 		fmt.Println("Error: Note name is required (use --name or -n)")
-		flag.Usage()
-		os.Exit(1)
+		mandatoryError = true
 	}
 
 	if config.VaultPath == "" {
 		fmt.Println("Error: Vault path is required (use --vault or -ob)")
+		mandatoryError = true
+	}
+
+	if mandatoryError {
+		fmt.Println("\nUsage information:")
 		flag.Usage()
 		os.Exit(1)
 	}
