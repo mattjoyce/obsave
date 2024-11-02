@@ -1,0 +1,42 @@
+#compdef obsave
+
+# Completion function for obsave
+function _obsave {
+    local curcontext="$curcontext" state line ret=1
+    typeset -A opt_args
+
+    # Define valid option arguments
+    local -a overwrite_modes=('fail:fail if file exists' 'overwrite:overwrite existing file' 'serialize:create numbered version')
+    local -a handling_modes=('replace:replace existing values' 'add:add only new values' 'merge:combine all values')
+
+    _arguments -C \
+        '(-h --help)'{-h,--help}'[Display help information]' \
+        '(-n --name)'{-n,--name}'[Name of the note]:note name' \
+        '(-t --tags)'{-t,--tags}'[Comma-separated list of tags]:tags' \
+        '(-p --properties)'{-p,--properties}'[Custom frontmatter properties (key=value;key2=value2)]:properties' \
+        '(-ob --vault)'{-ob,--vault}'[Path to Obsidian vault folder]:vault:_path_files -/' \
+        '(-v --verbose)'{-v,--verbose}'[Enable verbose mode]' \
+        '(-c --config)'{-c,--config}'[Name of the config file to use]:config file:->configs' \
+        '--overwrite-mode[Overwrite mode]:mode:($overwrite_modes)' \
+        '--debug[Enable debug mode]' \
+        '--dry-run[Simulate the run without writing files]' \
+        '--tags-handling[Tags handling mode]:mode:($handling_modes)' \
+        '--properties-handling[Properties handling mode]:mode:($handling_modes)' \
+        && ret=0
+
+    case $state in
+        configs)
+            local config_dir="${HOME}/.config/obsave"
+            if [[ -d "$config_dir" ]]; then
+                local -a config_files
+                config_files=($config_dir/*(.:t))
+                _wanted config_files expl 'config file' compadd -a config_files
+            fi
+            ;;
+    esac
+
+    return ret
+}
+
+_obsave "$@"
+
