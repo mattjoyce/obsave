@@ -96,7 +96,7 @@ func getConfigPath() string {
 }
 
 
-func loadConfig(configFile string) (*Config, error) {
+func loadConfig(configFile string) (*Config, *string, error) {
 	usr, err := user.Current()
 	if err != nil {
 		fmt.Println("Error getting current user:", err)
@@ -109,17 +109,17 @@ func loadConfig(configFile string) (*Config, error) {
 
 	data, err := ioutil.ReadFile(configPath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read config file: %v", err)
+		return nil, &configPath, fmt.Errorf("failed to read config file: %v", err)
 	}
 
 	var config Config
 	err = yaml.Unmarshal(data, &config)
 	if err != nil {
-		return nil, fmt.Errorf("failed to unmarshal YAML: %v", err)
+		return nil, nil, fmt.Errorf("failed to unmarshal YAML: %v", err)
 	}
 	debugLog("Config loaded : " + configFile)
 
-	return &config, nil
+	return &config, &configPath, nil
 }
 
 
@@ -390,42 +390,57 @@ func main() {
 		os.Exit(0)
 	}
 
+
 	// Initialize empty config
 	config := &Config{}
 
+	// Enable debug mode if set
+	if *debugFlag {
+		debugMode = true
+		log.SetFlags(log.Ldate | log.Ltime | log.Lshortfile)
+		debugLog("Debug mode enabled")
+	}
+
 	// 1. Try to load default config if it exists
-	defaultConfig, err := loadConfig(filepath.Join(configDir, configFile))
+	defaultConfig, configConfigPath, err := loadConfig(configFile)
 	if err == nil {
 		// Only use default config if it was successfully loaded
 		config = defaultConfig
+		debugLog("Default config loaded from: " + *configConfigPath)
 	}
 
 	// 2. If a specific config file was provided, load and use it instead
 	if configFileFlag != "" {
-		specifiedConfig, err := loadConfig(configFileFlag)
+		specifiedConfig, specifiedConfigPath  ,err := loadConfig(configFileFlag)
 		if err != nil {
-			log.Fatalf("Error loading specified config file: %v", err)
+			log.Fatalf("Error loading specified config file: %v, from path: %s", err, *specifiedConfigPath)
 		}
 		config = specifiedConfig
+		debugLog("Specified config loaded from: " + *specifiedConfigPath)
 	}
 
 	// 3. Override with command-line options if provided
 	if vaultPath != "" {
+		debugLog(fmt.Sprintf("Vault path set from: %s to %s", config.VaultPath, vaultPath))
 		config.VaultPath = vaultPath
 	}
 	if *overwriteMode != "" {
+		debugLog(fmt.Sprintf("Overwrite mode set from: %s to %s", config.OverwriteMode, *overwriteMode))
 		config.OverwriteMode = *overwriteMode
 	}
 	if *debugFlag {
 		config.Debug = true
 	}
 	if *dryRun {
+		debugLog("Dry run enabled")
 		config.DryRun = true
 	}
 	if *tagsHandling != "" {
+		debugLog(fmt.Sprintf("Tags handling set from: %s to %s", config.TagsHandling, *tagsHandling))
 		config.TagsHandling = *tagsHandling
 	}
 	if *propertiesHandling != "" {
+		debugLog(fmt.Sprintf("Properties handling set from: %s to %s", config.PropertiesHandling, *propertiesHandling))
 		config.PropertiesHandling = *propertiesHandling
 	}
 	if verbose {
@@ -435,23 +450,40 @@ func main() {
 		config.Name = name
 	}
 	if tags != "" {
+		debugLog(fmt.Sprintf("Old tags: [%s]", strings.Join(config.Tags, ", ")))
 		switch config.TagsHandling {
 		case "replace":
+			debugLog("Tags handling mode: replace")
 			replaceTags(config, tags)
 		case "add":
+			debugLog("Tags handling mode: add")
 			addTags(config, tags)
 		default: // "merge" is default
+			debugLog("Tags handling mode: merge")
 			mergeTags(config, tags)
 		}
+		debugLog("New tags: " + tags)
 	}
 	if properties != "" {
+		debugLog("Old properties:")
+		for k, v := range config.Properties {
+			debugLog(fmt.Sprintf("  %s: %s", k, v))
+		}
+
 		switch config.PropertiesHandling {
 		case "replace":
+			debugLog("Properties handling mode: replace")
 			replaceProperties(config, properties)
 		case "add":
+			debugLog("Properties handling mode: add")
 			addProperties(config, properties)
 		default: // "merge" is default
+			debugLog("Properties handling mode: merge")
 			mergeProperties(config, properties)
+		}
+		debugLog("Final properties:")
+		for k, v := range config.Properties {
+			debugLog(fmt.Sprintf("  %s: %s", k, v))
 		}
 	}
 
@@ -474,13 +506,19 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Enable debug mode if set
-	if config.Debug {
-		debugMode = true
-		log.SetFlags(log.Ldate | log.Ltime | log.Lshortfile)
-		debugLog("Debug mode enabled")
-	}
+
 	
+	if config.Debug {
+		debugLog("Final configuration:")
+		debugLog(fmt.Sprintf("  Name: %s", config.Name))
+		debugLog(fmt.Sprintf("  Vault Path: %s", config.VaultPath))
+		debugLog(fmt.Sprintf("  Overwrite Mode: %s", config.OverwriteMode))
+		debugLog(fmt.Sprintf("  Tags Handling: %s", config.TagsHandling))
+		debugLog(fmt.Sprintf("  Properties Handling: %s", config.PropertiesHandling))
+		debugLog(fmt.Sprintf("  Debug: %v", config.Debug))
+		debugLog(fmt.Sprintf("  Dry Run: %v", config.DryRun))
+		debugLog(fmt.Sprintf("  Verbose: %v", config.Verbose))
+	}
 
 	// Expand the "~" if used in the vault path
 	expandedVaultPath, err := expandAndCleanPath(config.VaultPath)
