@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"os"
 	"os/user"
@@ -43,28 +42,6 @@ func debugLog(message string) {
 	}
 }
 
-// Function to parse the custom frontmatter string
-func parseCustomClasses(classString string) (map[string]string, error) {
-	frontmatter := make(map[string]string)
-
-	if classString == "" {
-		return frontmatter, nil
-	}
-
-	pairs := strings.Split(classString, ";")
-	for _, pair := range pairs {
-		kv := strings.Split(pair, "=")
-		if len(kv) != 2 {
-			return nil, fmt.Errorf("invalid pair: %s", pair)
-		}
-		key := strings.TrimSpace(kv[0])
-		value := strings.TrimSpace(kv[1])
-		frontmatter[key] = value
-	}
-
-	return frontmatter, nil
-}
-
 // Function to expand home directories and clean up paths
 func expandAndCleanPath(path string) (string, error) {
 	// Handle home directory expansion (for Unix-like systems)
@@ -86,13 +63,28 @@ func expandAndCleanPath(path string) (string, error) {
 	return absPath, nil
 }
 
-func getConfigPath() string {
-	usr, err := user.Current()
-	if err != nil {
-		fmt.Println("Error getting current user:", err)
-		os.Exit(1)
+func setDefaultsAndOverrides(config *Config, overwriteModeFlag string) {
+	// Default values if neither config nor flag is set
+	if config.OverwriteMode == "" {
+			config.OverwriteMode = "fail"  // Base default
 	}
-	return filepath.Join(usr.HomeDir, configDir, configFile)
+	
+	// Command line flag overrides everything if specified
+	if overwriteModeFlag != "" {
+			debugLog(fmt.Sprintf("Overwrite mode set from: %s to %s", config.OverwriteMode, overwriteModeFlag))
+			config.OverwriteMode = overwriteModeFlag
+	}
+	
+	// Validate the final value
+	switch config.OverwriteMode {
+	case "fail", "overwrite", "serialize":
+			// Valid values
+	default:
+			log.Printf("Invalid overwrite mode '%s', using default 'fail'", config.OverwriteMode)
+			config.OverwriteMode = "fail"
+	}
+	
+	debugLog(fmt.Sprintf("Final overwrite mode: %s", config.OverwriteMode))
 }
 
 
@@ -107,7 +99,7 @@ func loadConfig(configFile string) (*Config, *string, error) {
 	configPath := filepath.Join(usr.HomeDir, configDir, configFile)
 	debugLog("Config Path : " + configPath)
 
-	data, err := ioutil.ReadFile(configPath)
+	data, err := os.ReadFile(configPath)
 	if err != nil {
 		return nil, &configPath, fmt.Errorf("failed to read config file: %v", err)
 	}
@@ -118,6 +110,8 @@ func loadConfig(configFile string) (*Config, *string, error) {
 		return nil, nil, fmt.Errorf("failed to unmarshal YAML: %v", err)
 	}
 	debugLog("Config loaded : " + configFile)
+
+	
 
 	return &config, &configPath, nil
 }
@@ -347,7 +341,7 @@ func init() {
 func main() {
 	// Command-line flags with both long and short forms
 
-  // Add explicit help flag (in addition to automatic -h)
+	// Add explicit help flag (in addition to automatic -h)
 	help := flag.Bool("help", false, "Display detailed help information")
 
 	var name string
@@ -374,12 +368,15 @@ func main() {
 	flag.StringVar(&configFileFlag, "config", "", "Name of the config file to use")
 	flag.StringVar(&configFileFlag, "c", "", "Name of the config file to use (shorthand)")
 	
-	// Existing flags without short forms
-	overwriteMode := flag.String("overwrite-mode", "fail", "Overwrite mode: 'overwrite' or 'serialize'")
+	// Existing flags without short forms - removed defaults where appropriate
+	var overwriteMode string
+	flag.StringVar(&overwriteMode, "overwrite-mode", "", "Overwrite mode: 'overwrite' or 'serialize'")
 	debugFlag := flag.Bool("debug", false, "Enable debug mode")
 	dryRun := flag.Bool("dry-run", false, "Simulate the run without writing files")
-	tagsHandling := flag.String("tags-handling", "merge", "Tags handling mode: 'replace', 'add', or 'merge'")
-	propertiesHandling := flag.String("properties-handling", "merge", "Properties handling mode: 'replace', 'add', or 'merge'")
+	var tagsHandling string
+	flag.StringVar(&tagsHandling, "tags-handling", "", "Tags handling mode: 'replace', 'add', or 'merge'")
+	var propertiesHandling string
+	flag.StringVar(&propertiesHandling, "properties-handling", "", "Properties handling mode: 'replace', 'add', or 'merge'")
 	
 	// Parse command-line flags
 	flag.Parse()
@@ -390,9 +387,12 @@ func main() {
 		os.Exit(0)
 	}
 
-
-	// Initialize empty config
-	config := &Config{}
+	// Initialize config with safe defaults
+	config := &Config{
+		OverwriteMode: "fail",         // Safe default
+		TagsHandling: "merge",         // Safe default
+		PropertiesHandling: "merge",   // Safe default
+	}
 
 	// Enable debug mode if set
 	if *debugFlag {
@@ -411,7 +411,7 @@ func main() {
 
 	// 2. If a specific config file was provided, load and use it instead
 	if configFileFlag != "" {
-		specifiedConfig, specifiedConfigPath  ,err := loadConfig(configFileFlag)
+		specifiedConfig, specifiedConfigPath, err := loadConfig(configFileFlag)
 		if err != nil {
 			log.Fatalf("Error loading specified config file: %v, from path: %s", err, *specifiedConfigPath)
 		}
@@ -424,9 +424,9 @@ func main() {
 		debugLog(fmt.Sprintf("Vault path set from: %s to %s", config.VaultPath, vaultPath))
 		config.VaultPath = vaultPath
 	}
-	if *overwriteMode != "" {
-		debugLog(fmt.Sprintf("Overwrite mode set from: %s to %s", config.OverwriteMode, *overwriteMode))
-		config.OverwriteMode = *overwriteMode
+	if overwriteMode != "" {
+		debugLog(fmt.Sprintf("Overwrite mode set from: %s to %s", config.OverwriteMode, overwriteMode))
+		config.OverwriteMode = overwriteMode
 	}
 	if *debugFlag {
 		config.Debug = true
@@ -435,13 +435,13 @@ func main() {
 		debugLog("Dry run enabled")
 		config.DryRun = true
 	}
-	if *tagsHandling != "" {
-		debugLog(fmt.Sprintf("Tags handling set from: %s to %s", config.TagsHandling, *tagsHandling))
-		config.TagsHandling = *tagsHandling
+	if tagsHandling != "" {
+		debugLog(fmt.Sprintf("Tags handling set from: %s to %s", config.TagsHandling, tagsHandling))
+		config.TagsHandling = tagsHandling
 	}
-	if *propertiesHandling != "" {
-		debugLog(fmt.Sprintf("Properties handling set from: %s to %s", config.PropertiesHandling, *propertiesHandling))
-		config.PropertiesHandling = *propertiesHandling
+	if propertiesHandling != "" {
+		debugLog(fmt.Sprintf("Properties handling set from: %s to %s", config.PropertiesHandling, propertiesHandling))
+		config.PropertiesHandling = propertiesHandling
 	}
 	if verbose {
 		config.Verbose = true
@@ -488,7 +488,6 @@ func main() {
 	}
 
 	// 4. Check mandatory options
-	// Check mandatory options
 	mandatoryError := false
 	if config.Name == "" {
 		fmt.Println("Error: Note name is required (use --name or -n)")
@@ -506,8 +505,6 @@ func main() {
 		os.Exit(1)
 	}
 
-
-	
 	if config.Debug {
 		debugLog("Final configuration:")
 		debugLog(fmt.Sprintf("  Name: %s", config.Name))
