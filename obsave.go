@@ -15,16 +15,17 @@ import (
 )
 
 type Config struct {
-	VaultPath     string            `yaml:"vault_path"`  
-	OverwriteMode string            `yaml:"overwrite_mode"` 
-	Tags          []string          `yaml:"tags"`        
-	Properties    map[string]string `yaml:"properties"`  
-	Debug         bool              `yaml:"debug"`
-	DryRun        bool              `yaml:"dry_run"`
-	TagsHandling  string            `yaml:"tags_handling"` 
-	PropertiesHandling string `yaml:"properties_handling"`
-	Name          string            `yaml:"name"`
-	Verbose       bool              `yaml:"verbose"`
+	VaultPath          string            `yaml:"vault_path"`
+	OverwriteMode      string            `yaml:"overwrite_mode"`
+	Tags               []string          `yaml:"tags"`
+	Properties         map[string]string `yaml:"properties"`
+	Debug              bool              `yaml:"debug"`
+	DryRun             bool              `yaml:"dry_run"`
+	TagsHandling       string            `yaml:"tags_handling"`
+	PropertiesHandling string            `yaml:"properties_handling"`
+	Name               string            `yaml:"name"`
+	Passthrough        bool              `yaml:"passthrough"`
+	Verbose            bool              `yaml:"verbose"`
 }
 
 // configs should be in ~/.config/obsave/
@@ -66,27 +67,26 @@ func expandAndCleanPath(path string) (string, error) {
 func setDefaultsAndOverrides(config *Config, overwriteModeFlag string) {
 	// Default values if neither config nor flag is set
 	if config.OverwriteMode == "" {
-			config.OverwriteMode = "fail"  // Base default
+		config.OverwriteMode = "fail" // Base default
 	}
-	
+
 	// Command line flag overrides everything if specified
 	if overwriteModeFlag != "" {
-			debugLog(fmt.Sprintf("Overwrite mode set from: %s to %s", config.OverwriteMode, overwriteModeFlag))
-			config.OverwriteMode = overwriteModeFlag
+		debugLog(fmt.Sprintf("Overwrite mode set from: %s to %s", config.OverwriteMode, overwriteModeFlag))
+		config.OverwriteMode = overwriteModeFlag
 	}
-	
+
 	// Validate the final value
 	switch config.OverwriteMode {
 	case "fail", "overwrite", "serialize":
-			// Valid values
+		// Valid values
 	default:
-			log.Printf("Invalid overwrite mode '%s', using default 'fail'", config.OverwriteMode)
-			config.OverwriteMode = "fail"
+		log.Printf("Invalid overwrite mode '%s', using default 'fail'", config.OverwriteMode)
+		config.OverwriteMode = "fail"
 	}
-	
+
 	debugLog(fmt.Sprintf("Final overwrite mode: %s", config.OverwriteMode))
 }
-
 
 func loadConfig(configFile string) (*Config, *string, error) {
 	usr, err := user.Current()
@@ -111,32 +111,28 @@ func loadConfig(configFile string) (*Config, *string, error) {
 	}
 	debugLog("Config loaded : " + configFile)
 
-	
-
 	return &config, &configPath, nil
 }
 
-
 func createFrontmatter(config *Config) string {
 	frontmatter := fmt.Sprintf("---\ntitle: %s\n", config.Name)
-	
+
 	// Handle tags if they exist in the config
 	if len(config.Tags) > 0 {
-			frontmatter += fmt.Sprintf("tags: [%s]\n", strings.Join(config.Tags, ", "))
+		frontmatter += fmt.Sprintf("tags: [%s]\n", strings.Join(config.Tags, ", "))
 	}
-	
+
 	// Add the date
 	frontmatter += fmt.Sprintf("date: %s\n", time.Now().Format("2006-01-02"))
-	
+
 	// Append custom frontmatter properties (key-value pairs from config.Properties)
 	for key, value := range config.Properties {
-			frontmatter += fmt.Sprintf("%s: %s\n", key, value)
+		frontmatter += fmt.Sprintf("%s: %s\n", key, value)
 	}
-	
+
 	frontmatter += "---\n"
 	return frontmatter
 }
-
 
 func saveToObsidian(content string, config *Config) (string, error) {
 	fileName := config.Name + ".md"
@@ -144,61 +140,58 @@ func saveToObsidian(content string, config *Config) (string, error) {
 
 	// Handle file existence cases
 	if _, err := os.Stat(filePath); err == nil {
-			if config.OverwriteMode == "serialize" {
-					baseName := strings.TrimSuffix(fileName, filepath.Ext(fileName))
-					counter := 1
-					for {
-							serializedFileName := fmt.Sprintf("%s_%d.md", baseName, counter)
-							serializedFilePath := filepath.Join(config.VaultPath, serializedFileName)
-							if _, err := os.Stat(serializedFilePath); os.IsNotExist(err) {
-									filePath = serializedFilePath
-									break
-							}
-							counter++
-					}
-					debugLog("Serialized file path: " + filePath)
-			} else if config.OverwriteMode != "overwrite" {
-					return "",fmt.Errorf("file '%s' already exists. Use --overwrite-mode=overwrite or --overwrite-mode=serialize", fileName)
-			} else {
-					debugLog("Overwriting existing file: " + filePath)
+		if config.OverwriteMode == "serialize" {
+			baseName := strings.TrimSuffix(fileName, filepath.Ext(fileName))
+			counter := 1
+			for {
+				serializedFileName := fmt.Sprintf("%s_%d.md", baseName, counter)
+				serializedFilePath := filepath.Join(config.VaultPath, serializedFileName)
+				if _, err := os.Stat(serializedFilePath); os.IsNotExist(err) {
+					filePath = serializedFilePath
+					break
+				}
+				counter++
 			}
+			debugLog("Serialized file path: " + filePath)
+		} else if config.OverwriteMode != "overwrite" {
+			return "", fmt.Errorf("file '%s' already exists. Use --overwrite-mode=overwrite or --overwrite-mode=serialize", fileName)
+		} else {
+			debugLog("Overwriting existing file: " + filePath)
+		}
 	} else {
-			debugLog("New file created: " + filePath)
+		debugLog("New file created: " + filePath)
 	}
 
 	// Create frontmatter using the updated createFrontmatter function
 	frontmatter := createFrontmatter(config)
 
 	if config.DryRun {
-			fmt.Println("Dry-run: The following content would be saved:")
-			fmt.Println(frontmatter + "\n" + content)
-			return filePath, nil
+		fmt.Println("Dry-run: The following content would be saved:")
+		fmt.Println(frontmatter + "\n" + content)
+		return filePath, nil
 	}
 
 	// Write the content to the file
 	file, err := os.Create(filePath)
 	if err != nil {
-			return "",err
+		return "", err
 	}
 	defer file.Close()
 
 	// Prepend the frontmatter to the content
 	_, err = file.WriteString(frontmatter + "\n" + content)
 	if err != nil {
-			return "",err
+		return "", err
 	}
 
 	debugLog("Note saved successfully at: " + filePath)
 	return filePath, nil
 }
 
-
-
-
 func replaceProperties(config *Config, cliProperties string) {
 	// Initialize or clear the map
 	config.Properties = make(map[string]string)
-	
+
 	// Split the CLI properties into key-value pairs
 	pairs := strings.Split(cliProperties, ";")
 	for _, pair := range pairs {
@@ -242,7 +235,7 @@ func mergeProperties(config *Config, cliProperties string) {
 func replaceTags(config *Config, cliTags string) {
 	// Split the CLI tags into a slice of strings
 	config.Tags = strings.Split(cliTags, ",")
-	
+
 	// Trim spaces around each tag
 	for i, tag := range config.Tags {
 		config.Tags[i] = strings.TrimSpace(tag)
@@ -252,7 +245,7 @@ func replaceTags(config *Config, cliTags string) {
 func addTags(config *Config, cliTags string) {
 	// Split the CLI tags into a slice of strings
 	newTags := strings.Split(cliTags, ",")
-	
+
 	// Trim spaces and add only new tags
 	for _, tag := range newTags {
 		tag = strings.TrimSpace(tag)
@@ -275,14 +268,13 @@ func contains(slice []string, item string) bool {
 func mergeTags(config *Config, cliTags string) {
 	// Split the CLI tags into a slice of strings
 	newTags := strings.Split(cliTags, ",")
-	
+
 	// Trim spaces and add all new tags (duplicates allowed)
 	for _, tag := range newTags {
 		tag = strings.TrimSpace(tag)
 		config.Tags = append(config.Tags, tag)
 	}
 }
-
 
 func printExtendedHelp() {
 	fmt.Println(`
@@ -347,27 +339,27 @@ func main() {
 	var name string
 	flag.StringVar(&name, "name", "", "Name of the note")
 	flag.StringVar(&name, "n", "", "Name of the note (shorthand)")
-	
+
 	var tags string
 	flag.StringVar(&tags, "tags", "", "Comma-separated list of tags")
 	flag.StringVar(&tags, "t", "", "Comma-separated list of tags (shorthand)")
-	
+
 	var properties string
 	flag.StringVar(&properties, "properties", "", "Custom frontmatter properties key:value pairs (e.g., author=John;status=Draft)")
 	flag.StringVar(&properties, "p", "", "Custom frontmatter properties key:value pairs (shorthand)")
-	
+
 	var vaultPath string
 	flag.StringVar(&vaultPath, "vault", "", "Path to Obsidian vault folder")
 	flag.StringVar(&vaultPath, "ob", "", "Path to Obsidian vault folder (shorthand)")
-	
+
 	var verbose bool
 	flag.BoolVar(&verbose, "verbose", false, "Enable verbose mode")
 	flag.BoolVar(&verbose, "v", false, "Enable verbose mode (shorthand)")
-	
+
 	var configFileFlag string
 	flag.StringVar(&configFileFlag, "config", "", "Name of the config file to use")
 	flag.StringVar(&configFileFlag, "c", "", "Name of the config file to use (shorthand)")
-	
+
 	// Existing flags without short forms - removed defaults where appropriate
 	var overwriteMode string
 	flag.StringVar(&overwriteMode, "overwrite-mode", "", "Overwrite mode: 'overwrite' or 'serialize'")
@@ -377,7 +369,10 @@ func main() {
 	flag.StringVar(&tagsHandling, "tags-handling", "", "Tags handling mode: 'replace', 'add', or 'merge'")
 	var propertiesHandling string
 	flag.StringVar(&propertiesHandling, "properties-handling", "", "Properties handling mode: 'replace', 'add', or 'merge'")
-	
+
+	var passthrough bool
+	flag.BoolVar(&passthrough, "passthrough", false, "Pass input through to stdout while saving to vault")
+
 	// Parse command-line flags
 	flag.Parse()
 
@@ -389,9 +384,9 @@ func main() {
 
 	// Initialize config with safe defaults
 	config := &Config{
-		OverwriteMode: "fail",         // Safe default
-		TagsHandling: "merge",         // Safe default
-		PropertiesHandling: "merge",   // Safe default
+		OverwriteMode:      "fail",  // Safe default
+		TagsHandling:       "merge", // Safe default
+		PropertiesHandling: "merge", // Safe default
 	}
 
 	// Enable debug mode if set
@@ -487,6 +482,10 @@ func main() {
 		}
 	}
 
+	if passthrough {
+		config.Passthrough = true
+	}
+
 	// 4. Check mandatory options
 	mandatoryError := false
 	if config.Name == "" {
@@ -526,12 +525,15 @@ func main() {
 	config.VaultPath = expandedVaultPath
 	debugLog("Vault path expanded: " + expandedVaultPath)
 
-
 	// Read piped input (from stdin)
 	scanner := bufio.NewScanner(os.Stdin)
 	var contentBuilder strings.Builder
 	for scanner.Scan() {
+		line := scanner.Text()
 		contentBuilder.WriteString(scanner.Text() + "\n")
+		if config.Passthrough {
+			fmt.Println(line)
+		}
 	}
 	if err := scanner.Err(); err != nil {
 		fmt.Fprintf(os.Stderr, "Error reading input: %v\n", err)
@@ -543,8 +545,8 @@ func main() {
 	// Save the content to the Obsidian vault, or simulate if dry-run is enabled
 	fullFilename, err := saveToObsidian(content, config)
 	if err != nil {
-			fmt.Fprintf(os.Stderr, "Error saving note: %v\n", err)
-			os.Exit(1)
+		fmt.Fprintf(os.Stderr, "Error saving note: %v\n", err)
+		os.Exit(1)
 	}
 
 	if config.Verbose {
