@@ -34,6 +34,7 @@
 
 > [!IMPORTANT]
 > ## Changelog
+> - **04-Feb-2025**: Added `--passthrough` options to allow saving _and_ pipeing to stdout 
 > - **19-Oct-2024**: Added `--verbose` option to output final filename and path
 > - **17-Oct-2024**: 
 >   - Switched to YAML for configuration
