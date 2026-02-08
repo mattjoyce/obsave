@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"os/user"
 	"path/filepath"
 	"strings"
 	"time"
@@ -95,14 +94,14 @@ func setDefaultsAndOverrides(config *Config, overwriteModeFlag string) {
 }
 
 func loadConfig(configFile string) (*Config, *string, error) {
-	usr, err := user.Current()
+	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		fmt.Println("Error getting current user:", err)
 		os.Exit(1)
 	}
 
 	// Build the path to the config file using the configName
-	configPath := filepath.Join(usr.HomeDir, configDir, configFile)
+	configPath := filepath.Join(homeDir, configDir, configFile)
 	debugLog("Config Path : " + configPath)
 
 	data, err := os.ReadFile(configPath)
