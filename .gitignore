@@ -23,3 +23,17 @@ go.work.sum
 
 # env file
 .env
+
+# Local binaries
+obsave
+
+# Local test vaults
+vault/
+vault1/
+vault2/
+
+# Windows Alternate Data Stream artifacts
+*:Zone.Identifier
+
+# Kanban board
+kanban/
