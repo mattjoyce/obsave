@@ -547,7 +547,7 @@ func main() {
 	var contentBuilder strings.Builder
 	for scanner.Scan() {
 		line := scanner.Text()
-		contentBuilder.WriteString(scanner.Text() + "\n")
+		contentBuilder.WriteString(line + "\n")
 		if config.Passthrough {
 			fmt.Println(line)
 		}
