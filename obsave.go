@@ -438,10 +438,6 @@ func main() {
 		debugLog(fmt.Sprintf("Vault path set from: %s to %s", config.VaultPath, vaultPath))
 		config.VaultPath = vaultPath
 	}
-	if overwriteMode != "" {
-		debugLog(fmt.Sprintf("Overwrite mode set from: %s to %s", config.OverwriteMode, overwriteMode))
-		config.OverwriteMode = overwriteMode
-	}
 	if *debugFlag {
 		config.Debug = true
 	}
@@ -460,6 +456,8 @@ func main() {
 	if verbose {
 		config.Verbose = true
 	}
+	// Validate and apply overwrite mode (config + CLI)
+	setDefaultsAndOverrides(config, overwriteMode)
 	if name != "" {
 		config.Name = name
 	}
