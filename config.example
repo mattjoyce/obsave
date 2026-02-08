@@ -35,6 +35,10 @@ dry_run: false
 # Options : true, false
 verbose: false
 
+# Echo stdin to stdout while saving the note
+# Options: true, false
+passthrough: false
+
 # Tags handling mode: how to combine config and CLI tags
 # Options: "replace", "add", "merge"
 tags_handling: "merge"

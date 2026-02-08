@@ -74,6 +74,7 @@ This will install the utility to your `$GOPATH/bin` directory.
 - `-v, --verbose`: Print the full path of the saved file
 - `--debug`: Enable detailed debug logging
 - `--dry-run`: Simulate the operation without writing files
+- `--passthrough`: Echo stdin to stdout while saving the note
 
 ### Help and Documentation
 - `-h`: Display concise usage information
@@ -101,6 +102,12 @@ echo "This is my note content." | obsave -n "MyNote" -t "project,example" -p "au
   Use the `--dry-run` option to simulate the operation without writing the file:
   ```bash
   echo "Test content" | obsave -n "TestNote" -ob "~/vault" --dry-run
+  ```
+
+- **Passthrough**:
+  Echo stdin to stdout while also saving it to the vault (useful in pipelines):
+  ```bash
+  echo "Test content" | obsave -n "TestNote" -ob "~/vault" --passthrough
   ```
 
 - **Overwrite Mode**:
