@@ -46,7 +46,13 @@ func debugLog(message string) {
 // Function to expand home directories and clean up paths
 func expandAndCleanPath(path string) (string, error) {
 	// Handle home directory expansion (for Unix-like systems)
-	if path[:2] == "~/" {
+	if path == "~" {
+		usr, err := os.UserHomeDir()
+		if err != nil {
+			return "", err
+		}
+		path = usr
+	} else if strings.HasPrefix(path, "~/") {
 		usr, err := os.UserHomeDir()
 		if err != nil {
 			return "", err
@@ -107,7 +113,7 @@ func loadConfig(configFile string) (*Config, *string, error) {
 	var config Config
 	err = yaml.Unmarshal(data, &config)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to unmarshal YAML: %v", err)
+		return nil, &configPath, fmt.Errorf("failed to unmarshal YAML: %v", err)
 	}
 	debugLog("Config loaded : " + configFile)
 
@@ -205,6 +211,9 @@ func replaceProperties(config *Config, cliProperties string) {
 }
 
 func addProperties(config *Config, cliProperties string) {
+	if config.Properties == nil {
+		config.Properties = make(map[string]string)
+	}
 	// Split the CLI properties into key-value pairs
 	pairs := strings.Split(cliProperties, ";")
 	for _, pair := range pairs {
@@ -220,6 +229,9 @@ func addProperties(config *Config, cliProperties string) {
 }
 
 func mergeProperties(config *Config, cliProperties string) {
+	if config.Properties == nil {
+		config.Properties = make(map[string]string)
+	}
 	// Split the CLI properties into key-value pairs
 	pairs := strings.Split(cliProperties, ";")
 	for _, pair := range pairs {
@@ -412,6 +424,13 @@ func main() {
 		}
 		config = specifiedConfig
 		debugLog("Specified config loaded from: " + *specifiedConfigPath)
+	}
+
+	// Enable debug mode if specified in config
+	if config.Debug {
+		debugMode = true
+		log.SetFlags(log.Ldate | log.Ltime | log.Lshortfile)
+		debugLog("Debug mode enabled from config")
 	}
 
 	// 3. Override with command-line options if provided
