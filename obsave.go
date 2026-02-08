@@ -320,6 +320,9 @@ EXAMPLES:
     echo "Tagged content" | obsave -n "Tagged Note" -ob ~/Notes \
         -t "new-tag" --tags-handling merge
 
+    # Passthrough stdin while saving
+    echo "Streamed content" | obsave -n "Streamed Note" -ob ~/Notes --passthrough
+
 FRONTMATTER:
     The generated note includes YAML frontmatter with:
     - title: from name option
